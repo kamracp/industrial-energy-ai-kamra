@@ -1,17 +1,20 @@
 import streamlit as st
 import math
 import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import io
 
 st.set_page_config(page_title="Industrial Energy AI", layout="wide")
 
-st.title("⚡ Industrial Compressor Sizing & Optimization AI")
-st.caption("Version 4.1 – Intermittent Load + Multi-Point Leakage")
+st.title("⚡ Industrial Compressor Optimization AI")
+st.caption("Version 5 – Selection + Report + Advanced Logic")
 
 # -------------------------------
-# MACHINE BASED SIZING
+# MACHINE SIZING
 # -------------------------------
 
-st.header("🏭 Compressor Sizing (Machine Based)")
+st.header("🏭 Compressor Sizing")
 
 num_machines = st.slider("Number of Machines", 1, 10, 3)
 
@@ -19,151 +22,135 @@ total_cfm = 0
 pressures = []
 
 for i in range(num_machines):
-    st.subheader(f"Machine {i+1}")
-    
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
-        cfm = st.selectbox(
-            f"Air Requirement (CFM)",
-            list(range(10, 305, 5)),
-            key=f"cfm{i}"
-        )
-        
+        cfm = st.selectbox(f"Machine {i+1} CFM", list(range(10, 305, 5)), key=f"cfm{i}")
+
     with col2:
-        pressure = st.selectbox(
-            f"Pressure (bar)",
-            list(range(4, 11)),
-            key=f"p{i}"
-        )
-        
+        pressure = st.selectbox(f"Pressure {i+1}", list(range(4, 11)), key=f"p{i}")
+
     with col3:
-        mode = st.selectbox(
-            f"Operation Mode",
-            ["Continuous", "Intermittent"],
-            key=f"mode{i}"
-        )
+        mode = st.selectbox(f"Mode {i+1}", ["Continuous", "Intermittent"], key=f"m{i}")
 
     if mode == "Continuous":
-        effective_cfm = cfm
+        eff_cfm = cfm
     else:
-        on_time = st.slider(f"ON Time (sec)", 1, 60, 10, key=f"on{i}")
-        cycle_time = st.slider(f"Cycle Time (sec)", 1, 60, 20, key=f"cycle{i}")
-        duty = on_time / cycle_time
-        effective_cfm = cfm * duty
+        on = st.slider(f"ON time {i+1}", 1, 60, 10, key=f"on{i}")
+        cycle = st.slider(f"Cycle time {i+1}", 1, 60, 20, key=f"cy{i}")
+        eff_cfm = cfm * (on / cycle)
 
-    total_cfm += effective_cfm
+    total_cfm += eff_cfm
     pressures.append(pressure)
 
 avg_pressure = sum(pressures) / len(pressures)
+flow = total_cfm * 1.7
+efficiency = st.slider("Efficiency", 0.5, 0.95, 0.75)
 
-flow = total_cfm * 1.7  # convert to Nm3/hr
+power = (flow * avg_pressure * math.log(avg_pressure)) / (36.7 * efficiency)
+specific_power = power / total_cfm
 
-efficiency = st.slider("Compressor Efficiency", 0.5, 0.95, 0.75)
-
-power = (flow * avg_pressure * math.log(avg_pressure/1)) / (36.7 * efficiency)
-
-specific_power = power / total_cfm if total_cfm > 0 else 0
-
-st.subheader("📊 Sizing Results")
-
-st.write(f"Effective Air Demand: {round(total_cfm,2)} CFM")
-st.write(f"Required Power: {round(power,2)} kW")
+st.subheader("📊 Sizing Result")
+st.write(f"Total Demand: {round(total_cfm,2)} CFM")
+st.write(f"Power: {round(power,2)} kW")
 st.write(f"Specific Power: {round(specific_power,3)} kW/CFM")
 
 # -------------------------------
-# MULTI-POINT LEAKAGE
+# COMPRESSOR SELECTION
 # -------------------------------
 
-st.header("💨 Leakage Audit (Multiple Points)")
+st.header("⚙ Compressor Selection")
 
-num_leaks = st.slider("Number of Leakage Points", 1, 20, 3)
+if power < 75:
+    selection = "1 x Small Screw Compressor"
+elif power < 200:
+    selection = "2 x Medium Compressors (1 working + 1 standby)"
+else:
+    selection = "3 x Compressors (2 working + 1 standby)"
 
-total_leak_cfm = 0
+st.success(selection)
 
-pressure_leak = st.slider("System Pressure (bar)", 4, 10, 7)
+# -------------------------------
+# LEAKAGE
+# -------------------------------
+
+st.header("💨 Leakage Audit")
+
+num_leaks = st.slider("Leak Points", 1, 20, 3)
+pressure_leak = st.slider("Pressure", 4, 10, 7)
+
+total_leak = 0
 
 for i in range(num_leaks):
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        leak_size = st.selectbox(
-            f"Leak {i+1} Size (mm)",
-            [round(0.1 + j*0.2,1) for j in range(20)],
-            key=f"leak{i}"
-        )
-        
-    with col2:
-        count = st.number_input(f"No. of points", 1, 50, 1, key=f"count{i}")
+    size = st.selectbox(f"Leak size {i+1}", [round(0.1+j*0.2,1) for j in range(20)], key=f"l{i}")
+    count = st.number_input(f"No. {i+1}", 1, 20, 1, key=f"c{i}")
 
-    area = math.pi * (leak_size/1000)**2 / 4
-    
-    leak_cfm = area * 10000 * math.sqrt(pressure_leak) * 2118
-    
-    total_leak_cfm += leak_cfm * count
+    area = math.pi * (size/1000)**2 / 4
+    leak = area * 10000 * math.sqrt(pressure_leak) * 2118
 
-# Cost calculation
-cost_per_kwh = st.slider("Power Cost ₹/kWh", 5, 15, 5)
-annual_hours = 8000
+    total_leak += leak * count
 
-leak_power = total_leak_cfm * 0.1
-leak_cost = leak_power * annual_hours * cost_per_kwh
+cost = st.slider("Power cost ₹", 5, 15, 5)
 
-st.subheader("📉 Leakage Results")
+leak_power = total_leak * 0.1
+leak_cost = leak_power * 8000 * cost
 
-st.write(f"Total Leakage: {round(total_leak_cfm,2)} CFM")
-st.write(f"Power Loss: {round(leak_power,2)} kW")
-st.write(f"Annual Leakage Cost: ₹ {round(leak_cost,0)}")
+st.write(f"Leakage: {round(total_leak,2)} CFM")
+st.write(f"Leak Cost: ₹ {round(leak_cost,0)}")
 
 # -------------------------------
 # TOTAL ENERGY
 # -------------------------------
 
-st.header("💰 Total Energy Analysis")
-
 total_power = power + leak_power
-total_energy = total_power * annual_hours
-total_cost = total_energy * cost_per_kwh
+total_cost = total_power * 8000 * cost
 
-st.write(f"Total Power: {round(total_power,2)} kW")
+st.header("💰 Total Cost")
 st.write(f"Annual Cost: ₹ {round(total_cost,0)}")
 
 # -------------------------------
-# AI ADVISOR
+# PDF REPORT
 # -------------------------------
 
-st.header("🤖 AI Advisor")
+st.header("📄 Generate Report")
 
-if total_leak_cfm > 50:
-    st.warning("⚠ High leakage detected – immediate action required")
+def create_pdf():
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
 
-if specific_power > 0.12:
-    st.warning("⚠ System inefficient – check compressor selection")
+    c.drawString(50, 750, "Industrial Compressor Report")
+    c.drawString(50, 720, f"Total CFM: {round(total_cfm,2)}")
+    c.drawString(50, 700, f"Power: {round(power,2)} kW")
+    c.drawString(50, 680, f"Leak Cost: ₹ {round(leak_cost,0)}")
+    c.drawString(50, 660, f"Total Cost: ₹ {round(total_cost,0)}")
+    c.drawString(50, 640, f"Recommendation: {selection}")
 
-if avg_pressure > 7:
-    st.warning("⚠ Pressure too high – reduce if possible")
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-saving = total_cost * 0.2
+pdf = create_pdf()
 
-st.success(f"💰 Potential Saving: ₹ {round(saving,0)} per year")
+st.download_button(
+    label="Download Report",
+    data=pdf,
+    file_name="compressor_report.pdf",
+    mime="application/pdf"
+)
 
 # -------------------------------
 # GRAPH
 # -------------------------------
 
-st.header("📈 Efficiency vs Power")
+st.header("📈 Efficiency Curve")
 
-eff_range = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
-energy_list = []
+eff_range = [0.6,0.65,0.7,0.75,0.8,0.85]
+power_list = []
 
 for e in eff_range:
-    p = (flow * avg_pressure * math.log(avg_pressure/1)) / (36.7 * e)
-    energy_list.append(p)
+    p = (flow * avg_pressure * math.log(avg_pressure)) / (36.7 * e)
+    power_list.append(p)
 
 plt.figure()
-plt.plot(eff_range, energy_list, marker='o')
-plt.xlabel("Efficiency")
-plt.ylabel("Power (kW)")
-plt.title("Efficiency Impact")
-
+plt.plot(eff_range, power_list)
 st.pyplot(plt)
