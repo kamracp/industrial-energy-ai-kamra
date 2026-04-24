@@ -4,118 +4,142 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Industrial Energy AI", layout="wide")
 
-st.title("⚡ Industrial Compressor Optimization AI – Commercial Version")
+st.title("⚡ Industrial Compressor Sizing & Optimization AI")
+st.caption("Version 4 – Machine Based Sizing + Leakage Analysis")
 
-# Layout
-col1, col2 = st.columns(2)
+# -------------------------------
+# SECTION 1: MACHINE BASED SIZING
+# -------------------------------
 
-with col1:
-    flow = st.number_input("Air Flow (Nm3/hr)", value=1000)
-    pressure = st.number_input("Discharge Pressure (bar)", value=7)
-    efficiency = st.slider("Efficiency", 0.5, 0.95, 0.75)
-    leakage = st.slider("Leakage %", 0, 50, 20)
+st.header("🏭 Compressor Sizing (Machine Based)")
 
-with col2:
-    pipe_length = st.number_input("Pipe Length (m)", value=100)
-    pipe_dia = st.number_input("Pipe Diameter (mm)", value=100)
-    hours = st.number_input("Operating Hours/year", value=8000)
-    cost = st.number_input("Electricity Cost (₹/kWh)", value=8)
+unit = st.selectbox("Select Flow Unit", ["CFM", "Nm3/hr"])
 
-# --- Calculations ---
+num_machines = st.slider("Number of Machines", 1, 10, 3)
 
-actual_flow = flow * (1 + leakage/100)
+total_cfm = 0
+pressures = []
 
-area = math.pi * (pipe_dia/1000)**2 / 4
-velocity = (actual_flow/3600) / area
+for i in range(num_machines):
+    col1, col2 = st.columns(2)
+    with col1:
+        cfm = st.selectbox(
+            f"Machine {i+1} Air (CFM)",
+            list(range(10, 305, 5)),
+            key=f"cfm{i}"
+        )
+    with col2:
+        pressure = st.selectbox(
+            f"Machine {i+1} Pressure (bar)",
+            list(range(4, 11)),
+            key=f"p{i}"
+        )
 
-rho = 1.2
-f = 0.02
-dp = f * (pipe_length/(pipe_dia/1000)) * (rho * velocity**2 / 2) / 100000
+    total_cfm += cfm
+    pressures.append(pressure)
 
-effective_pressure = pressure + dp
+avg_pressure = sum(pressures) / len(pressures)
 
-power = (actual_flow * effective_pressure * math.log(effective_pressure/1)) / (36.7 * efficiency)
-
-annual_energy = power * hours
-annual_cost = annual_energy * cost
-
-# --- Loss Breakdown ---
-leakage_loss = annual_cost * (leakage/100)
-pipe_loss_cost = annual_cost * (dp / pressure)
-
-# --- Compressor Selection ---
-if power < 75:
-    comp_type = "Small Screw Compressor"
-elif power < 250:
-    comp_type = "Medium Screw Compressor (VFD Recommended)"
+# Convert to Nm3/hr
+if unit == "CFM":
+    flow = total_cfm * 1.7
 else:
-    comp_type = "High Capacity Multi-stage Compressor"
+    flow = total_cfm
 
-# --- ROI ---
-investment = power * 8000  # approx ₹ per kW
-saving = annual_cost * 0.2
-payback = investment / saving if saving > 0 else 0
+efficiency = st.slider("Compressor Efficiency", 0.5, 0.95, 0.75)
 
-# --- Results ---
-st.subheader("📊 Engineering Results")
+# Power Calculation
+power = (flow * avg_pressure * math.log(avg_pressure/1)) / (36.7 * efficiency)
 
-st.write(f"Corrected Flow: {round(actual_flow,2)} Nm3/hr")
-st.write(f"Pipe Pressure Loss: {round(dp,3)} bar")
-st.write(f"Required Power: {round(power,2)} kW")
-st.write(f"Annual Energy Cost: ₹ {round(annual_cost,0)}")
+specific_power = power / total_cfm if total_cfm > 0 else 0
 
-# --- Loss ---
-st.subheader("💸 Loss Analysis")
+st.subheader("📊 Sizing Results")
 
-st.write(f"Leakage Loss: ₹ {round(leakage_loss,0)}")
-st.write(f"Pipe Loss Cost: ₹ {round(pipe_loss_cost,0)}")
+st.write(f"Total Air Demand: {total_cfm} CFM")
+st.write(f"Average Pressure: {round(avg_pressure,2)} bar")
+st.write(f"Required Compressor Power: {round(power,2)} kW")
+st.write(f"Specific Power: {round(specific_power,3)} kW/CFM")
 
-# --- Selection ---
-st.subheader("🏭 Recommended Equipment")
+# -------------------------------
+# SECTION 2: LEAKAGE ANALYSIS
+# -------------------------------
 
-st.success(f"Recommended: {comp_type}")
+st.header("💨 Leakage Analysis")
 
-# --- ROI ---
-st.subheader("📈 ROI Analysis")
+leak_size = st.selectbox(
+    "Leak Hole Size (mm)",
+    [round(0.1 + i*0.2, 1) for i in range(20)]
+)
 
-st.write(f"Estimated Investment: ₹ {round(investment,0)}")
-st.write(f"Annual Saving: ₹ {round(saving,0)}")
-st.write(f"Payback Period: {round(payback,1)} years")
+pressure_leak = st.slider("Leak Pressure (bar)", 4, 10, 7)
 
-# --- CEO SUMMARY ---
-st.subheader("📢 CEO Summary")
+area = math.pi * (leak_size / 1000) ** 2 / 4
 
-st.info(f"""
-Your plant is consuming approximately ₹ {round(annual_cost,0)} per year in compressed air energy.
+# Practical leakage estimation
+leak_cfm = area * 10000 * math.sqrt(pressure_leak) * 2118
 
-Potential saving of ₹ {round(saving,0)} per year is achievable through optimization.
+cost_per_kwh = st.slider("Power Cost ₹/kWh", 5, 15, 5)
 
-Major losses:
-- Leakage: ₹ {round(leakage_loss,0)}
-- Piping inefficiency: ₹ {round(pipe_loss_cost,0)}
+leak_power = leak_cfm * 0.1
+annual_hours = 8000
 
-Recommended Action:
-✔ Optimize pressure settings  
-✔ Reduce leakage  
-✔ Upgrade compressor system  
+leak_cost = leak_power * annual_hours * cost_per_kwh
 
-Estimated Payback: {round(payback,1)} years
-""")
+st.subheader("📉 Leakage Results")
 
-# --- Graph ---
-st.subheader("📈 Efficiency Impact")
+st.write(f"Leakage Air Loss: {round(leak_cfm,2)} CFM")
+st.write(f"Power Loss: {round(leak_power,2)} kW")
+st.write(f"Annual Cost Loss: ₹ {round(leak_cost,0)}")
+
+# -------------------------------
+# SECTION 3: TOTAL ENERGY COST
+# -------------------------------
+
+st.header("💰 Energy Cost Analysis")
+
+total_power = power + leak_power
+total_energy = total_power * annual_hours
+total_cost = total_energy * cost_per_kwh
+
+st.write(f"Total Power (with leakage): {round(total_power,2)} kW")
+st.write(f"Annual Energy Cost: ₹ {round(total_cost,0)}")
+
+# -------------------------------
+# SECTION 4: AI ADVISOR
+# -------------------------------
+
+st.header("🤖 AI Advisor")
+
+if leak_size > 1:
+    st.warning("⚠ Major leakage detected – urgent repair required")
+
+if specific_power > 0.12:
+    st.warning("⚠ High specific power – inefficient system")
+
+if avg_pressure > 7:
+    st.warning("⚠ High pressure setting – reduce if possible")
+
+saving = total_cost * 0.2
+
+st.success(f"💰 Potential Saving: ₹ {round(saving,0)} per year")
+
+# -------------------------------
+# SECTION 5: GRAPH
+# -------------------------------
+
+st.header("📈 Efficiency vs Power")
 
 eff_range = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
 energy_list = []
 
 for e in eff_range:
-    p = (actual_flow * effective_pressure * math.log(effective_pressure/1)) / (36.7 * e)
+    p = (flow * avg_pressure * math.log(avg_pressure/1)) / (36.7 * e)
     energy_list.append(p)
 
 plt.figure()
 plt.plot(eff_range, energy_list, marker='o')
 plt.xlabel("Efficiency")
 plt.ylabel("Power (kW)")
-plt.title("Efficiency vs Power")
+plt.title("Efficiency Impact on Power")
 
- 
+st.pyplot(plt)
