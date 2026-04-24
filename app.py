@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Industrial Energy AI", layout="wide")
 
-st.title("⚡ Industrial Compressor Sizing AI – Pro Version")
+st.title("⚡ Industrial Compressor Optimization AI – Commercial Version")
 
 # Layout
 col1, col2 = st.columns(2)
@@ -23,56 +23,87 @@ with col2:
 
 # --- Calculations ---
 
-# Corrected Flow
 actual_flow = flow * (1 + leakage/100)
 
-# Pipe velocity (approx)
 area = math.pi * (pipe_dia/1000)**2 / 4
 velocity = (actual_flow/3600) / area
 
-# Pipe pressure loss (simplified)
 rho = 1.2
 f = 0.02
-dp = f * (pipe_length/(pipe_dia/1000)) * (rho * velocity**2 / 2) / 100000  # bar
+dp = f * (pipe_length/(pipe_dia/1000)) * (rho * velocity**2 / 2) / 100000
 
-# Effective pressure
 effective_pressure = pressure + dp
 
-# Power
 power = (actual_flow * effective_pressure * math.log(effective_pressure/1)) / (36.7 * efficiency)
 
-# Annual cost
 annual_energy = power * hours
 annual_cost = annual_energy * cost
 
+# --- Loss Breakdown ---
+leakage_loss = annual_cost * (leakage/100)
+pipe_loss_cost = annual_cost * (dp / pressure)
+
+# --- Compressor Selection ---
+if power < 75:
+    comp_type = "Small Screw Compressor"
+elif power < 250:
+    comp_type = "Medium Screw Compressor (VFD Recommended)"
+else:
+    comp_type = "High Capacity Multi-stage Compressor"
+
+# --- ROI ---
+investment = power * 8000  # approx ₹ per kW
+saving = annual_cost * 0.2
+payback = investment / saving if saving > 0 else 0
+
 # --- Results ---
-st.subheader("📊 Results")
+st.subheader("📊 Engineering Results")
 
 st.write(f"Corrected Flow: {round(actual_flow,2)} Nm3/hr")
 st.write(f"Pipe Pressure Loss: {round(dp,3)} bar")
-st.write(f"Required Compressor Power: {round(power,2)} kW")
+st.write(f"Required Power: {round(power,2)} kW")
 st.write(f"Annual Energy Cost: ₹ {round(annual_cost,0)}")
 
-# --- AI Advisor ---
-st.subheader("🤖 AI Advisor")
+# --- Loss ---
+st.subheader("💸 Loss Analysis")
 
-if leakage > 15:
-    st.warning("⚠ High leakage – potential loss ₹ " + str(int(annual_cost*0.15)))
+st.write(f"Leakage Loss: ₹ {round(leakage_loss,0)}")
+st.write(f"Pipe Loss Cost: ₹ {round(pipe_loss_cost,0)}")
 
-if dp > 0.5:
-    st.warning("⚠ High pipe loss – increase pipe diameter")
+# --- Selection ---
+st.subheader("🏭 Recommended Equipment")
 
-if efficiency < 0.7:
-    st.warning("⚠ Low efficiency – consider VFD compressor")
+st.success(f"Recommended: {comp_type}")
 
-if pressure > 7:
-    st.warning("⚠ High pressure – reduce setpoint")
+# --- ROI ---
+st.subheader("📈 ROI Analysis")
 
-saving = annual_cost * 0.2
-st.success(f"💰 Potential Saving: ₹ {round(saving,0)} per year")
+st.write(f"Estimated Investment: ₹ {round(investment,0)}")
+st.write(f"Annual Saving: ₹ {round(saving,0)}")
+st.write(f"Payback Period: {round(payback,1)} years")
+
+# --- CEO SUMMARY ---
+st.subheader("📢 CEO Summary")
+
+st.info(f"""
+Your plant is consuming approximately ₹ {round(annual_cost,0)} per year in compressed air energy.
+
+Potential saving of ₹ {round(saving,0)} per year is achievable through optimization.
+
+Major losses:
+- Leakage: ₹ {round(leakage_loss,0)}
+- Piping inefficiency: ₹ {round(pipe_loss_cost,0)}
+
+Recommended Action:
+✔ Optimize pressure settings  
+✔ Reduce leakage  
+✔ Upgrade compressor system  
+
+Estimated Payback: {round(payback,1)} years
+""")
 
 # --- Graph ---
-st.subheader("📈 Energy vs Efficiency")
+st.subheader("📈 Efficiency Impact")
 
 eff_range = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
 energy_list = []
@@ -85,6 +116,6 @@ plt.figure()
 plt.plot(eff_range, energy_list, marker='o')
 plt.xlabel("Efficiency")
 plt.ylabel("Power (kW)")
-plt.title("Efficiency vs Power Consumption")
+plt.title("Efficiency vs Power")
 
 st.pyplot(plt)
