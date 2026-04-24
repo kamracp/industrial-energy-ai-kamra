@@ -118,4 +118,4 @@ plt.xlabel("Efficiency")
 plt.ylabel("Power (kW)")
 plt.title("Efficiency vs Power")
 
- import matplotlib.pyplot as plt
+ 
