@@ -154,3 +154,39 @@ for e in eff_range:
 plt.figure()
 plt.plot(eff_range, power_list)
 st.pyplot(plt)
+# -------------------------------
+# SAVING REPORT
+# -------------------------------
+
+st.header("📢 Energy Saving Report")
+
+saving_leak = leak_cost
+saving_pressure = total_cost * 0.05 if avg_pressure > 7 else 0
+saving_efficiency = total_cost * 0.1 if specific_power > 0.12 else 0
+
+total_saving = saving_leak + saving_pressure + saving_efficiency
+
+st.subheader("💰 Saving Potential")
+
+st.write(f"Leakage Saving: ₹ {round(saving_leak,0)}")
+st.write(f"Pressure Optimization Saving: ₹ {round(saving_pressure,0)}")
+st.write(f"Efficiency Improvement Saving: ₹ {round(saving_efficiency,0)}")
+
+st.success(f"Total Possible Saving: ₹ {round(total_saving,0)} per year")
+
+# -------------------------------
+# ACTION PLAN
+# -------------------------------
+
+st.subheader("🛠 Recommended Actions")
+
+if saving_leak > 0:
+    st.write("✔ Fix all leakage points immediately")
+
+if avg_pressure > 7:
+    st.write("✔ Reduce system pressure by 1 bar")
+
+if specific_power > 0.12:
+    st.write("✔ Upgrade compressor or improve system efficiency")
+
+st.write("✔ Install proper monitoring system")
