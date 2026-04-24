@@ -1,6 +1,6 @@
 import streamlit as st
 import math
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Industrial Energy AI", layout="wide")
 
@@ -118,4 +118,4 @@ plt.xlabel("Efficiency")
 plt.ylabel("Power (kW)")
 plt.title("Efficiency vs Power")
 
-st.pyplot(plt)
+# import matplotlib.pyplot as plt
